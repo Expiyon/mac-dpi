@@ -119,7 +119,7 @@ $ python3 dpi.py diag example-blocked.com     # illustrative output
 ## How it works
 
 1. The browser sends `CONNECT host:443`; `mac-dpi` replies `200`.
-2. `host` is resolved over **DoH** (three resolvers with automatic fallback, A + AAAA).
+2. `host` is resolved over **DoH** (Cloudflare + Google, automatic fallback, A + AAAA).
 3. The browser's first packet — the **TLS ClientHello** — is read and its SNI
    extension is located.
 4. The ClientHello is sent according to the current strategy:
@@ -170,10 +170,11 @@ browser never notices. The winning strategy is written to
 | `--delay-ms N` | `0` | Extra gap between fragments (ms). Try `25`–`40` against stubborn DPI |
 | `--max-attempts N` | `8` | Strategies to try in `auto` mode |
 | `--probe-timeout SEC` | `2.5` | How long a strategy has to prove itself |
+| `--max-conns N` | `512` | Concurrent connection ceiling |
 | `--no-set-proxy` | — | Don't touch the macOS system proxy |
 | `--service NAME` | auto | Network service for the system proxy (`Wi-Fi`, …) |
 | `--no-doh` | — | Use the system resolver instead of DoH |
-| `--doh-url URL` | 1.1.1.1 / 9.9.9.9 / 8.8.8.8 | DoH endpoint (repeatable) |
+| `--doh-url URL` | Cloudflare + Google | DoH endpoint, repeatable (JSON API) |
 | `--doh-strategy NAME` | `sni-mid` | Fragmentation strategy for the DoH connection |
 | `--fresh` | — | Ignore learned strategies |
 | `-v` / `-q` | — | Verbose / quiet |

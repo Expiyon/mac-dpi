@@ -85,10 +85,11 @@ Her açılışta arka planda:
 | `--delay-ms N` | `0` | Parçalar arası ek gecikme (ms). İnatçı DPI'da `25`–`40` dene (taban ~4 ms zaten var) |
 | `--max-attempts N` | `8` | `auto` modda denenecek strateji sayısı |
 | `--probe-timeout SN` | `2.5` | Bir stratejinin "geçti mi" bekleme süresi |
+| `--max-conns N` | `512` | Eş zamanlı bağlantı sınırı |
 | `--no-set-proxy` | — | macOS sistem proxy'sine dokunma |
 | `--service AD` | otomatik | Sistem proxy için ağ servisi (`Wi-Fi`, …) |
 | `--no-doh` | — | DoH kapalı, sistem DNS'i (dikkat: TR'de genelde zehirli) |
-| `--doh-url URL` | 1.1.1.1 / 9.9.9.9 / 8.8.8.8 | DoH ucu (birden çok kez verilebilir) |
+| `--doh-url URL` | Cloudflare + Google | DoH ucu, birden çok kez verilebilir (JSON API) |
 | `--doh-strategy AD` | `sni-mid` | DoH bağlantısı için parçalama stratejisi |
 | `--test-host AD` | `www.wikipedia.org` | Kendi testi / referans alan adı |
 | `--fresh` | — | Öğrenilmiş stratejileri yok say |

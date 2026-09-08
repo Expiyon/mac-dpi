@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/1.1.0/).
 - **DPI injection detection** — a TLS `alert` or non-ServerHello reply on :443 is
   treated as a failed attempt.
 - **Fragmented DNS-over-HTTPS** with multi-endpoint fallback
-  (1.1.1.1 / 9.9.9.9 / 8.8.8.8) and AAAA support. The DoH connection's own
+  (Cloudflare 1.1.1.1/1.0.0.1, Google 8.8.8.8/8.8.4.4) and AAAA support. The DoH connection's own
   ClientHello is fragmented too.
 - **`diag <host>`** command — classifies the block (DNS tampering / IP
   null-route / SNI-DPI / MITM certificate) and reports which strategy passes.
@@ -32,6 +32,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/1.1.0/).
 - `auto` order now leads with the record-fragmentation strategies.
 - Minimum ~4 ms gap between fragments to guarantee TCP segmentation.
 - Defaults: `--max-attempts 8`, `--probe-timeout 2.5`.
+- DoH endpoints are now Cloudflare (`1.1.1.1`, `1.0.0.1`) + Google
+  (`8.8.8.8`, `8.8.4.4`); Quad9 dropped (its `/dns-query` rejects the
+  HTTP/1.1 JSON request with `505`).
+
+### Fixed
+- **File-descriptor leak** in the DoH / diagnostic TLS client: a failed
+  handshake no longer leaks the socket. This was the cause of
+  `OSError: [Errno 24] Too many open files` (and the resolver failures
+  that cascade from it) during long sessions.
+- Raise `RLIMIT_NOFILE` on startup — macOS gives a launchd/Terminal
+  process only 256 by default, far too few for a system-wide proxy.
+- Bounded concurrency (`--max-conns`, default 512) so a burst of
+  background traffic can't exhaust sockets.
+- Resolver failures are now rate-limited in the log instead of flooding
+  it one line per unresolved host.
 
 ## [1.0.0] - 2026-09-08
 

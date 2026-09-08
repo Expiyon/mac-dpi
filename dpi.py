@@ -14,7 +14,7 @@ SpoofDPI'ye gore farklari
   * DPI enjeksiyonu tespiti: 443'te ServerHello yerine TLS alert / blok sayfasi
     gelirse "gecmedi" sayar ve baska strateji dener.
   * DNS-over-HTTPS'in kendisi de parcali gonderilir; birden fazla cozumleyici
-    (1.1.1.1 / 9.9.9.9 / 8.8.8.8) arasinda otomatik gecis. AAAA (IPv6) destegi.
+    (1.1.1.1 / 1.0.0.1 / 8.8.8.8 / 8.8.4.4) arasinda otomatik gecis. AAAA (IPv6) destegi.
   * Sistem proxy'sini otomatik ayarlar ve cikista *onceki haline* geri yukler.
     Cokme olsa bile ~/.config/dpi/proxy-backup.json ile bir sonraki calismada
     veya `python3 dpi.py restore` ile kurtarilir.
@@ -41,6 +41,7 @@ import atexit
 import json
 import logging
 import os
+import resource
 import signal
 import socket
 import ssl
@@ -55,13 +56,35 @@ LEARN_FILE = CONFIG_DIR / "learned.json"
 BACKUP_FILE = CONFIG_DIR / "proxy-backup.json"
 
 DOH_ENDPOINTS = [
-    "https://1.1.1.1/dns-query",
-    "https://9.9.9.9/dns-query",
-    "https://8.8.8.8/resolve",
+    "https://1.1.1.1/dns-query",     # Cloudflare
+    "https://1.0.0.1/dns-query",     # Cloudflare (ikincil)
+    "https://8.8.8.8/resolve",       # Google
+    "https://8.8.4.4/resolve",       # Google (ikincil)
 ]
 
 LOG = logging.getLogger("dpi")
 _TTY = sys.stdout.isatty()
+
+
+def raise_fd_limit(target=16384):
+    """Acik dosya (soket) limitini yukselt. macOS varsayilani cok dusuk (256);
+    sistem proxy'si olarak calisirken 'Too many open files' verir."""
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    except Exception:
+        return None
+    if soft != resource.RLIM_INFINITY and soft >= target:
+        return soft
+    tries = [target, 10240, 8192, 4096, 2048]
+    if hard != resource.RLIM_INFINITY:
+        tries = [t for t in tries if t <= hard] or [hard]
+    for want in tries:
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (want, hard))
+            return want
+        except (ValueError, OSError):
+            continue
+    return soft
 
 
 def _c(txt, code):
@@ -246,7 +269,11 @@ class FragTLS:
         self._obj = ctx.wrap_bio(self._in, self._out, server_hostname=server_hostname)
         self._chunks_fn = chunks_fn
         self._first = True
-        self._handshake()
+        try:
+            self._handshake()
+        except BaseException:
+            self.close()          # el sikisma basarisizsa soketi sizdirma
+            raise
 
     def _flush(self):
         data = self._out.read()
@@ -508,7 +535,7 @@ def _split_hostport(s: str, default: int):
 
 class Proxy:
     def __init__(self, resolver, learn, strategy, delay_ms, timeout,
-                 probe_timeout, max_attempts):
+                 probe_timeout, max_attempts, max_conns=512):
         self.resolver = resolver
         self.learn = learn
         self.strategy = strategy          # "auto" veya sabit bir strateji adi
@@ -516,10 +543,30 @@ class Proxy:
         self.timeout = timeout
         self.probe_timeout = probe_timeout
         self.max_attempts = max_attempts
+        self.sem = asyncio.Semaphore(max_conns)
         self.stats = {"conns": 0, "bypassed": 0, "failed": 0}
+        self._rfail_t = 0.0              # son ozet zamani
+        self._rfail_n = 0               # o zamandan beri cozulemeyen host sayisi
+
+    def _resolve_failed(self, host, e):
+        """Cozumleme hatasi: her host icin debug; INFO'da en fazla ~20 sn'de bir ozet."""
+        LOG.debug("%s cozulemedi: %s", host, e)
+        self._rfail_n += 1
+        now = time.monotonic()
+        if now - self._rfail_t >= 20:
+            LOG.info("cozumlenemeyen alan adi: %d (son ~20 sn, sonuncu: %s)",
+                     self._rfail_n, host)
+            self._rfail_t = now
+            self._rfail_n = 0
 
     # --------------------------------------------------------------------- #
     async def handle(self, creader, cwriter):
+        if self.sem.locked():
+            LOG.debug("es zamanli baglanti siniri doldu, bekleniyor")
+        async with self.sem:
+            await self._handle(creader, cwriter)
+
+    async def _handle(self, creader, cwriter):
         try:
             try:
                 header = await asyncio.wait_for(
@@ -639,7 +686,7 @@ class Proxy:
         try:
             ips = await self.resolver.resolve(host)
         except Exception as e:
-            LOG.warning("%s: %s", host, e)
+            self._resolve_failed(host, e)
             _w(cwriter, b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
             return
 
@@ -747,7 +794,7 @@ class Proxy:
         try:
             ips = await self.resolver.resolve(host)
         except Exception as e:
-            LOG.warning("%s: %s", host, e)
+            self._resolve_failed(host, e)
             _w(cwriter, b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
             return
 
@@ -1172,11 +1219,15 @@ async def run(args):
     host, port = parse_listen(args.listen)
     loop = asyncio.get_event_loop()
 
+    fd = raise_fd_limit()
+    if fd and fd < args.max_conns * 4:
+        LOG.debug("acik dosya limiti %s; --max-conns %d'e gore dusuk olabilir", fd, args.max_conns)
+
     endpoints = args.doh_url or DOH_ENDPOINTS
     resolver = Resolver(endpoints, args.doh, args.doh_strategy, args.timeout, loop)
     learn = LearnStore(LEARN_FILE, fresh=args.fresh)
     proxy = Proxy(resolver, learn, args.strategy, args.delay_ms, args.timeout,
-                  args.probe_timeout, args.max_attempts)
+                  args.probe_timeout, args.max_attempts, args.max_conns)
 
     try:
         server = await asyncio.start_server(proxy.handle, host, port, limit=1 << 20)
@@ -1300,6 +1351,8 @@ def build_parser():
                    help="auto modda denenecek strateji sayisi (varsayilan 8)")
     p.add_argument("--probe-timeout", type=float, default=2.5,
                    help="bir strateji 'gecti mi' beklemesi (sn, varsayilan 2.5)")
+    p.add_argument("--max-conns", type=int, default=512,
+                   help="es zamanli baglanti siniri (varsayilan 512)")
     p.add_argument("--no-set-proxy", dest="set_proxy", action="store_false",
                    help="macOS sistem proxy'sine dokunma")
     p.add_argument("--set-proxy", dest="set_proxy", action="store_true",
@@ -1309,7 +1362,7 @@ def build_parser():
     p.add_argument("--no-doh", dest="doh", action="store_false",
                    help="DoH kapali, sistem DNS'i kullanilir")
     p.add_argument("--doh-url", action="append", default=None,
-                   help="DoH ucu (birden fazla verilebilir). Varsayilan 1.1.1.1/9.9.9.9/8.8.8.8")
+                   help="DoH ucu (birden fazla verilebilir). Varsayilan: Cloudflare + Google")
     p.add_argument("--doh-strategy", default="sni-mid",
                    help="DoH baglantisi icin parcalama stratejisi (varsayilan sni-mid)")
     p.add_argument("--test-host", default="www.wikipedia.org",
