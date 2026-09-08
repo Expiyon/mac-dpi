@@ -42,11 +42,11 @@ Sana tam olarak **neyin** engellediğini ve **hangi stratejinin geçtiğini** s�
 - Hangi parçalama stratejileri **GEÇER** → onu `--strategy` ile sabitle ya da `auto`
   zaten bulur ve `~/.config/dpi/learned.json`'a yazar.
 
-Örnek çıktı (gerçek bir TR engeli):
+Örnek çıktı (temsili):
 
 ```
-[DNS] sistem cozumleyici : 195.175.254.2          <- Türk Telekom blok-sayfası IP'si
-[DNS] DoH (1.1.1.1 vb.)   : 162.159.135.232 ...    <- gerçek IP
+[DNS] sistem cozumleyici : 198.51.100.10          <- ISP blok-sayfası IP'si
+[DNS] DoH (1.1.1.1 vb.)   : 203.0.113.42 ...       <- gerçek IP
 [TLS] parcalama YOK ...   : ClientHello sonrasi RST -> SNI TABANLI DPI ENGELI
    --   sni-mid       reset
    GECER record-frag  ok  HTTP/1.1 200 OK

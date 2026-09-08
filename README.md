@@ -86,14 +86,14 @@ curl -x http://127.0.0.1:8080 -sI https://example.com
 If something still won't load, ask the tool why:
 
 ```console
-$ python3 dpi.py diag discord.com
+$ python3 dpi.py diag example-blocked.com     # illustrative output
 
-=== dpi tani: discord.com ===
+=== dpi tani: example-blocked.com ===
 
-[DNS] sistem cozumleyici : 195.175.254.2          # ISP block-page IP
-[DNS] DoH (1.1.1.1 vb.)   : 162.159.135.232 ...   # real IP
+[DNS] sistem cozumleyici : 198.51.100.10         # ISP block-page IP
+[DNS] DoH (1.1.1.1 vb.)   : 203.0.113.42 ...     # real IP
 
-[TCP] 162.159.135.232:443 ... ok (14 ms)
+[TCP] 203.0.113.42:443 ... ok (14 ms)
 
 [TLS] parcalama YOK, dogru SNI ile      ... ClientHello sonrasi RST  ->  SNI TABANLI DPI ENGELI
 
