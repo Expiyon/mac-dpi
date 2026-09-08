@@ -1,0 +1,14 @@
+#!/bin/bash
+# DPI.app  ->  yanindaki dpi.command dosyasini Terminal'de acar.
+# DPI.app'i her zaman "dpi" klasorunun icinde tutun (dpi.command ile yan yana).
+
+HERE="$(cd "$(dirname "$0")/../../.." && pwd)"
+CMD="$HERE/dpi.command"
+
+if [ ! -f "$CMD" ]; then
+    osascript -e 'display alert "dpi.command bulunamadi" message "DPI.app dosyasini dpi klasorunun icinde, dpi.command ile ayni yerde tutun."'
+    exit 1
+fi
+
+chmod +x "$CMD" 2>/dev/null
+open -a Terminal "$CMD"
