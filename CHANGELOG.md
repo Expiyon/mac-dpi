@@ -47,6 +47,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/1.1.0/).
   background traffic can't exhaust sockets.
 - Resolver failures are now rate-limited in the log instead of flooding
   it one line per unresolved host.
+- DoH: an endpoint that answers "no such name" is authoritative — stop
+  instead of re-querying every other resolver. Per-query DoH timeout
+  capped at 5 s. A bogus / mistyped domain now fails fast (~0.2 s)
+  instead of stacking up handshakes.
+- The rate-limited resolver summary fires on the first failure (the
+  `time.monotonic()` epoch is process-relative on macOS, so the old
+  zero-init suppressed it for the first 20 s).
+
+### Tests
+- `tests/test_dpi.py` — 35 offline unit tests (SNI parsing, every
+  fragmentation strategy round-trips, learn store, `_order_for`, the
+  rate limiter, `SysProxy` enable/restore round-trip stubbed, DoH
+  short-circuit, an fd-leak regression test, CLI parsing). Wired into CI
+  on Python 3.8–3.12 and macOS.
+- `tests/integration.sh` — 41 live checks (proxy matrix incl. a censored
+  site, every forced strategy, adaptive fallback, concurrency, fd
+  stability, `diag`, graceful shutdown). Not in CI (needs open network).
 
 ## [1.0.0] - 2026-09-08
 

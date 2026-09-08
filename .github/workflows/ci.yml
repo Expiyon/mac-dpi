@@ -15,6 +15,8 @@ jobs:
           python-version: "3.12"
       - name: Byte-compile
         run: python -m compileall -q dpi.py
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
       - name: ShellCheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
@@ -33,6 +35,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m py_compile dpi.py
+      - run: python -m unittest discover -s tests
 
   macos:
     runs-on: macos-latest
@@ -43,3 +46,4 @@ jobs:
           python3 -m py_compile dpi.py
           python3 dpi.py --version
           python3 dpi.py strategies
+          python3 -m unittest discover -s tests -v

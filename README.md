@@ -210,6 +210,13 @@ browser never notices. The winning strategy is written to
 
 ---
 
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v   # 35 offline unit tests (also run in CI)
+./tests/integration.sh                     # 41 live checks (needs open network)
+```
+
 ## Disclaimer
 
 `mac-dpi` exists to reach the open internet where it is censored. Use it on your
