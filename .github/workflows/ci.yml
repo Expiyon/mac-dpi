@@ -6,34 +6,40 @@ on:
   pull_request:
 
 jobs:
-  compile:
-    runs-on: macos-latest
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Byte-compile
+        run: python -m compileall -q dpi.py
+      - name: ShellCheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck dpi.command install-service.sh uninstall-service.sh \
+                     DPI.app/Contents/MacOS/dpi-launcher
+
+  compat:
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - run: python -m py_compile dpi.py
 
-      - name: Byte-compile
-        run: python -m py_compile dpi.py
-
-      - name: Smoke test
-        run: |
-          python dpi.py --version
-          python dpi.py strategies
-
-  shellcheck:
-    runs-on: ubuntu-latest
+  macos:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: ShellCheck
+      - name: Smoke test
         run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck dpi.command install-service.sh uninstall-service.sh \
-                     DPI.app/Contents/MacOS/dpi-launcher
+          python3 -m py_compile dpi.py
+          python3 dpi.py --version
+          python3 dpi.py strategies
