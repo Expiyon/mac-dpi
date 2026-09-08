@@ -432,19 +432,24 @@ class Resolver:
         return ips
 
     def _doh_all(self, host):
+        doh_to = min(self.timeout, 5)
         for ep in self.endpoints:
             u = urlsplit(ep)
             ip, port = u.hostname, (u.port or 443)
             results = []
+            answered = False                       # bu uc gecerli bir JSON cevap verdi mi
             for rtype in ("A", "AAAA"):
                 try:
-                    raw = socket.create_connection((ip, port), timeout=self.timeout)
+                    raw = socket.create_connection((ip, port), timeout=doh_to)
                     tls = FragTLS(raw, ip,
                                   lambda d: build_chunks(d, self.strategy),
-                                  self.timeout, verify=True)
-                    body = _http_get_over(tls, ip, f"{u.path}?name={host}&type={rtype}")
-                    tls.close()
+                                  doh_to, verify=True)
+                    try:
+                        body = _http_get_over(tls, ip, f"{u.path}?name={host}&type={rtype}")
+                    finally:
+                        tls.close()
                     obj = json.loads(body)
+                    answered = True
                     want = 1 if rtype == "A" else 28
                     for ans in obj.get("Answer", []):
                         if ans.get("type") == want:
@@ -453,7 +458,9 @@ class Resolver:
                     LOG.debug("DoH %s %s/%s: %s", ep, host, rtype, e)
             if results:
                 return results
-        return []
+            if answered:
+                return []                          # uc konustu, kayit yok -> kesin
+        return []                                  # tum ucler hatali -> sistem cozumleyiciye
 
 
 # ===========================================================================
@@ -545,7 +552,7 @@ class Proxy:
         self.max_attempts = max_attempts
         self.sem = asyncio.Semaphore(max_conns)
         self.stats = {"conns": 0, "bypassed": 0, "failed": 0}
-        self._rfail_t = 0.0              # son ozet zamani
+        self._rfail_t = float("-inf")   # son ozet zamani (ilk hatada hemen yazsin)
         self._rfail_n = 0               # o zamandan beri cozulemeyen host sayisi
 
     def _resolve_failed(self, host, e):
